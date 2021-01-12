@@ -193,7 +193,7 @@ const switchVerticalSetting = (
 };
 
 type BaseItem = { id: string; name: string; h?: string; collapsed?: boolean };
-type PageItem = BaseItem & { url: string; favicon?: string };
+type PageItem = BaseItem & { url: string; favicon?: string; title?: string };
 type GroupItem = BaseItem & {
   items: Item[];
   vertical?: boolean;
@@ -313,7 +313,6 @@ const getItemVertical = (state: AppState, item: Item) => {
 const ItemComponent = ({ item }: { item: Item }) => {
   const [state, setState] = useContext(AppStateContext);
   const [newName, setNewName] = useState(item.name);
-  const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState(!item.collapsed);
 
   const parent = getParent(state, item);
@@ -432,10 +431,10 @@ const ItemComponent = ({ item }: { item: Item }) => {
             }
           >
             <span className="font-bold">{item.name}</span>
-            {title && (
+            {"title" in item && item.title && item.title !== item.name && (
               <>
                 {" "}
-                <span className="italic">({title})</span>
+                <span className="italic">({item.title})</span>
               </>
             )}
           </div>
@@ -501,7 +500,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
         } bg-white text-black`}
       >
         {"url" in item ? (
-          loaded && <WebItem item={item} setTitle={setTitle} onFocus={focus} />
+          loaded && <WebItem item={item} onFocus={focus} />
         ) : (
           <Set items={item.items} vertical={vertical} />
         )}
@@ -510,7 +509,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
   );
 };
 
-const WebItem = ({ item, setTitle, onFocus }) => {
+const WebItem = ({ item, onFocus }) => {
   const webView = useRef<WebviewTag>();
   const addressBar = useRef<HTMLInputElement>();
   const [url, setUrl] = useState(item.url);
@@ -532,7 +531,13 @@ const WebItem = ({ item, setTitle, onFocus }) => {
     webView.current.addEventListener("page-title-updated", (e) => {
       const title = webView.current.getTitle();
       if (title) {
-        setTitle(title);
+        setState((state) => {
+          const theItem = findItem(state.items, item.id) as PageItem;
+          theItem.title = title;
+          if (!theItem.name) {
+            theItem.name = title;
+          }
+        });
       }
     });
     webView.current.addEventListener("new-window", (e) => {
