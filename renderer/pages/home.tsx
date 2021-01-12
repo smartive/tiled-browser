@@ -1,9 +1,12 @@
 import { WebviewTag } from "electron";
 import produce from "immer";
+import Head from "next/head";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
+  FaArrowLeft,
   FaChevronDown,
   FaChevronRight,
+  FaRedo,
   FaStepBackward,
   FaThumbtack,
   FaTimes,
@@ -81,6 +84,16 @@ const findItem = (items: Item[], id: string): Item => {
   }
 };
 
+const doRemoveItem = (state: AppState, id: string) => {
+  removeItem(state.items, id);
+  if (state.maximizedItem === id) {
+    state.maximizedItem = undefined;
+  }
+  if (state.selectedItem === id) {
+    state.selectedItem = undefined;
+  }
+};
+
 const removeItem = (items: Item[], id: string) => {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -132,6 +145,7 @@ const newTile = (
   const id = ulid();
   (group as GroupItem).items.push({ id, name, url });
   state.itemsByKey[id] = { path: [group.id, id] };
+  state.selectedItem = id;
 };
 
 type BaseItem = { id: string; name: string; h?: string; collapsed?: boolean };
@@ -206,6 +220,14 @@ const ActualPage = () => {
 
   return (
     <div className="h-screen w-screen flex overflow-x-hidden">
+      <Head>
+        <title>
+          Tiled Browser
+          {state.selectedItem
+            ? `- ${findItem(state.items, state.selectedItem)?.name}`
+            : ""}
+        </title>
+      </Head>
       <Set items={state.items} />
     </div>
   );
@@ -219,14 +241,7 @@ const Set = ({ items, col = false }) => {
         col ? "flex-col" : "flex-row"
       } overflow-hidden`}
     >
-      {(state.maximizedItem
-        ? items.filter(
-            (item) =>
-              state.itemsByKey[item.id].path.includes(state.maximizedItem) ||
-              state.itemsByKey[state.maximizedItem].path.includes(item.id)
-          )
-        : items
-      ).map((item) => (
+      {items.map((item) => (
         <ItemComponent key={item.id} item={item} col={col} />
       ))}
     </div>
@@ -240,10 +255,32 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
   const [editName, setEditName] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const [title, setTitle] = useState("");
+  const [loaded, setLoaded] = useState(!item.collapsed);
+
+  useEffect(() => {
+    if (!item.collapsed) {
+      setLoaded(true);
+    }
+  }, [item.collapsed]);
+
+  const focus = () => {
+    setState((state) => {
+      if (state.selectedItem !== item.id) {
+        state.selectedItem = item.id;
+        findItem(state.items, item.id).collapsed = false;
+      }
+    });
+  };
 
   return (
     <div
       className={`flex flex-col ${
+        !state.maximizedItem ||
+        state.itemsByKey[item.id].path.includes(state.maximizedItem) ||
+        state.itemsByKey[state.maximizedItem].path.includes(item.id)
+          ? ""
+          : "hidden"
+      } ${
         item.collapsed
           ? "flex-none"
           : item.h
@@ -252,12 +289,7 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
       }`}
       onClick={(e) => {
         e.stopPropagation();
-        setState((state) => {
-          if (state.selectedItem !== item.id) {
-            state.selectedItem = item.id;
-            findItem(state.items, item.id).collapsed = false;
-          }
-        });
+        focus();
       }}
     >
       <div
@@ -344,9 +376,7 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
           className="p-1"
           onClick={(e) => {
             e.stopPropagation();
-            setState((state) => {
-              removeItem(state.items, item.id);
-            });
+            setState((state) => doRemoveItem(state, item.id));
           }}
         >
           <FaTimes />
@@ -356,7 +386,7 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
         className={`flex flex-col flex-grow ${item.collapsed ? "hidden" : ""}`}
       >
         {"url" in item ? (
-          <WebItem item={item} setTitle={setTitle} />
+          loaded && <WebItem item={item} setTitle={setTitle} onFocus={focus} />
         ) : (
           <Set items={item.items} col={!col} />
         )}
@@ -365,7 +395,7 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
   );
 };
 
-const WebItem = ({ item, setTitle }) => {
+const WebItem = ({ item, setTitle, onFocus }) => {
   const webView = useRef<WebviewTag>();
   const addressBar = useRef<HTMLInputElement>();
   const [url, setUrl] = useState(item.url);
@@ -393,6 +423,7 @@ const WebItem = ({ item, setTitle }) => {
     webView.current.addEventListener("new-window", (e) => {
       setState((state) => newTile(state, "", e.url, true));
     });
+    webView.current.addEventListener("focus", onFocus);
   }, []);
 
   const navigate = (url: string, force = false) => {
@@ -449,6 +480,18 @@ const WebItem = ({ item, setTitle }) => {
             </button>
           </>
         )}
+        <button
+          className="p-1 border border-transparent"
+          onClick={() => webView.current.goBack()}
+        >
+          <FaArrowLeft />
+        </button>
+        <button
+          className="p-1 border border-transparent"
+          onClick={() => webView.current.reload()}
+        >
+          <FaRedo />
+        </button>
         <div className="flex flex-grow">
           <form
             className="flex flex-grow"
@@ -467,9 +510,7 @@ const WebItem = ({ item, setTitle }) => {
                 if (e.ctrlKey && e.key === "w") {
                   e.preventDefault();
                   e.stopPropagation();
-                  setState((state) => {
-                    removeItem(state.items, item.id);
-                  });
+                  setState((state) => doRemoveItem(state, item.id));
                 }
               }}
             />
@@ -481,6 +522,7 @@ const WebItem = ({ item, setTitle }) => {
         src={url}
         className="flex-grow"
         useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.131 Safari/537.36"
+        /*useragent="Chrome"*/
       />
     </>
   );
