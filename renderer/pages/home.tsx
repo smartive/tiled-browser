@@ -6,6 +6,8 @@ import {
   FaArrowLeft,
   FaChevronDown,
   FaChevronRight,
+  FaEllipsisH,
+  FaEllipsisV,
   FaRedo,
   FaStepBackward,
   FaThumbtack,
@@ -34,6 +36,7 @@ const DEFAULT_STATE: StoredState = {
 type StoredState = {
   maximizedItem?: string;
   selectedItem?: string;
+  editItemName?: string;
   items: Item[];
 };
 
@@ -110,22 +113,49 @@ const removeItem = (items: Item[], id: string) => {
   return false;
 };
 
+const getCurrentGroup = (state: AppState) => {
+  let group = state.selectedItem && findItem(state.items, state.selectedItem);
+
+  while (group && "url" in group) {
+    const path = state.itemsByKey[group.id].path;
+    const parentId = path[path.length - 2];
+    group = parentId && findItem(state.items, parentId);
+  }
+
+  return group as GroupItem;
+};
+
+const newGroup = (state: AppState) => {
+  let currentGroup = getCurrentGroup(state);
+
+  const group = {
+    id: ulid(),
+    name: "New Group",
+    items: [],
+  };
+  if (currentGroup) {
+    currentGroup.items.push(group);
+    state.itemsByKey[group.id] = {
+      path: [...state.itemsByKey[currentGroup.id].path, group.id],
+    };
+  } else {
+    state.items.push(group);
+    state.itemsByKey[group.id] = { path: [group.id] };
+  }
+  state.selectedItem = group.id;
+  state.editItemName = group.id;
+};
+
 const newTile = (
   state: AppState,
   name: string,
   url: string,
   browsing: boolean
 ) => {
-  let group: Item;
+  let group: GroupItem;
 
   if (!browsing) {
-    group = state.selectedItem && findItem(state.items, state.selectedItem);
-
-    while (group && "url" in group) {
-      const path = state.itemsByKey[group.id].path;
-      const parentId = path[path.length - 2];
-      group = parentId && findItem(state.items, parentId);
-    }
+    group = getCurrentGroup(state);
   }
 
   if (!group) {
@@ -143,15 +173,31 @@ const newTile = (
   }
 
   const id = ulid();
-  (group as GroupItem).items.push({ id, name, url });
+  group.items.push({ id, name, url });
   state.itemsByKey[id] = { path: [group.id, id] };
   state.selectedItem = id;
 };
 
-type BaseItem = { id: string; name: string; h?: string; collapsed?: boolean };
+const switchVerticalSetting = (
+  verticalSetting: boolean | undefined,
+  verticalComputed: boolean
+): boolean | undefined => {
+  if (verticalSetting === undefined) {
+    return !verticalComputed;
+  }
+  if (verticalSetting !== verticalComputed) {
+    return !verticalSetting;
+  }
 
+  return undefined;
+};
+
+type BaseItem = { id: string; name: string; h?: string; collapsed?: boolean };
 type PageItem = BaseItem & { url: string };
-type GroupItem = BaseItem & { items: Item[] };
+type GroupItem = BaseItem & {
+  items: Item[];
+  vertical?: boolean;
+};
 
 type Item = PageItem | GroupItem;
 
@@ -208,9 +254,11 @@ const ActualPage = () => {
   const [state, setState] = useContext(AppStateContext);
 
   useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.ctrlKey && e.key === "n") {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && e.key === "n") {
         setState((state) => newTile(state, "", "about:blank", false));
+      } else if (e.ctrlKey && e.shiftKey && e.key === "N") {
+        setState((state) => newGroup(state));
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -233,29 +281,47 @@ const ActualPage = () => {
   );
 };
 
-const Set = ({ items, col = false }) => {
-  const [state] = useContext(AppStateContext);
-  return (
-    <div
-      className={`flex flex-grow h-full w-full ${
-        col ? "flex-col" : "flex-row"
-      } overflow-hidden`}
-    >
-      {items.map((item) => (
-        <ItemComponent key={item.id} item={item} col={col} />
-      ))}
-    </div>
-  );
+const Set = ({ items, vertical = false }) => (
+  <div
+    className={`flex flex-grow h-full w-full ${
+      vertical ? "flex-col" : "flex-row"
+    } overflow-hidden`}
+  >
+    {items.map((item) => (
+      <ItemComponent key={item.id} item={item} />
+    ))}
+  </div>
+);
+
+const getParent = (state: AppState, item: Item) => {
+  const path = state.itemsByKey[item.id].path;
+  const parentId = path[path.length - 2];
+  return parentId && findItem(state.items, parentId);
 };
 
-const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
-  const vertical = item.collapsed && !col;
+const getItemVertical = (state: AppState, item: Item) => {
+  const path = state.itemsByKey[item.id].path;
+  const computedVertical = path.length > 0; // !!(path.length % 2);
+  return [
+    "vertical" in item && item.vertical !== undefined
+      ? item.vertical
+      : computedVertical,
+    computedVertical,
+  ];
+};
 
+const ItemComponent = ({ item }: { item: Item }) => {
   const [state, setState] = useContext(AppStateContext);
-  const [editName, setEditName] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState(!item.collapsed);
+
+  const parent = getParent(state, item);
+  const path = state.itemsByKey[item.id].path;
+  const [parentVertical] = parent ? getItemVertical(state, parent) : [false];
+  const [vertical, computedVertical] = getItemVertical(state, item);
+
+  const verticalText = item.collapsed && !parentVertical;
 
   useEffect(() => {
     if (!item.collapsed) {
@@ -274,19 +340,26 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
 
   return (
     <div
-      className={`flex flex-col ${
-        !state.maximizedItem ||
-        state.itemsByKey[item.id].path.includes(state.maximizedItem) ||
-        state.itemsByKey[state.maximizedItem].path.includes(item.id)
-          ? ""
-          : "hidden"
-      } ${
-        item.collapsed
-          ? "flex-none"
-          : item.h
-          ? `flex-none h-${item.h}`
-          : "flex-1"
-      }`}
+      className={`flex flex-col
+        ${
+          state.selectedItem === item.id
+            ? `bg-gray-200 text-black`
+            : `bg-gray-900 text-white hover:bg-gray-700`
+        }
+        ${
+          !state.maximizedItem ||
+          state.itemsByKey[item.id].path.includes(state.maximizedItem) ||
+          state.itemsByKey[state.maximizedItem].path.includes(item.id)
+            ? ""
+            : "hidden"
+        }
+        ${
+          item.collapsed
+            ? "flex-none"
+            : item.h
+            ? `flex-none h-${item.h}`
+            : "flex-1"
+        }`}
       onClick={(e) => {
         e.stopPropagation();
         focus();
@@ -294,31 +367,53 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
     >
       <div
         className={`flex p-2 ${
-          state.selectedItem === item.id
-            ? `bg-gray-200 text-black`
-            : `bg-gray-900 text-white`
-        } ${vertical ? "flex-col flex-grow space-y-1" : "space-x-1"}`}
+          verticalText ? "flex-col flex-grow space-y-1" : "space-x-1"
+        }`}
+        style={
+          verticalText
+            ? {}
+            : {
+                [`paddingLeft`]: `${path.length - 0.5}rem`,
+              }
+        }
       >
+        <button
+          className="p-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            setState(
+              (state) =>
+                (findItem(state.items, item.id).collapsed = !item.collapsed)
+            );
+          }}
+        >
+          {item.collapsed && parentVertical ? (
+            <FaChevronRight />
+          ) : (
+            <FaChevronDown />
+          )}
+        </button>
         {"url" in item && (
           <img
-            className={`w-4 h-4 ${vertical ? "ml-1" : "mt-1"}`}
+            className={`w-4 h-4 ${verticalText ? "ml-1" : "mt-1"}`}
             src={`${new URL(item.url).origin}/favicon.ico`}
           />
         )}
-        {editName ? (
+        {state.editItemName === item.id ? (
           <form
             className="flex flex-grow"
             onKeyDown={(e) => {
               if (e.key === "Escape") {
-                setEditName(false);
+                setState((state) => (state.editItemName = undefined));
+                setNewName(item.name);
               }
             }}
             onSubmit={(e) => {
               e.preventDefault();
-              setState(
-                (state) => (findItem(state.items, item.id).name = newName)
-              );
-              setEditName(false);
+              setState((state) => {
+                findItem(state.items, item.id).name = newName;
+                state.editItemName = undefined;
+              });
             }}
           >
             <input
@@ -331,8 +426,10 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
         ) : (
           <div
             className="flex-grow cursor-pointer space-x-1"
-            style={{ writingMode: vertical ? "vertical-rl" : undefined }}
-            onDoubleClick={() => setEditName(true)}
+            style={{ writingMode: verticalText ? "vertical-rl" : undefined }}
+            onDoubleClick={() =>
+              setState((state) => (state.editItemName = item.id))
+            }
           >
             <span className="font-bold">{item.name}</span>
             {title && (
@@ -343,52 +440,70 @@ const ItemComponent = ({ item, col }: { item: Item; col: boolean }) => {
             )}
           </div>
         )}
-        <button
-          className="p-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            setState(
-              (state) =>
-                (findItem(state.items, item.id).collapsed = !item.collapsed)
-            );
-          }}
-        >
-          {item.collapsed && col ? <FaChevronRight /> : <FaChevronDown />}
-        </button>
-        {state.maximizedItem === item.id ? (
-          <button
-            className="p-1"
-            onClick={() =>
-              setState((state) => (state.maximizedItem = undefined))
-            }
-          >
-            <FaWindowRestore />
-          </button>
-        ) : (
-          <button
-            className="p-1"
-            onClick={() => setState((state) => (state.maximizedItem = item.id))}
-          >
-            <FaWindowMaximize />
-          </button>
+        {!item.collapsed && (
+          <>
+            {"items" in item && (
+              <button
+                className={`p-1 ${
+                  item.vertical === undefined ? "text-gray-500" : ""
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setState(
+                    (state) =>
+                      ((findItem(
+                        state.items,
+                        item.id
+                      ) as GroupItem).vertical = switchVerticalSetting(
+                        item.vertical,
+                        computedVertical
+                      ))
+                  );
+                }}
+              >
+                {vertical ? <FaEllipsisV /> : <FaEllipsisH />}
+              </button>
+            )}
+            {state.maximizedItem === item.id ? (
+              <button
+                className="p-1"
+                onClick={() =>
+                  setState((state) => (state.maximizedItem = undefined))
+                }
+              >
+                <FaWindowRestore />
+              </button>
+            ) : (
+              <button
+                className="p-1"
+                onClick={() =>
+                  setState((state) => (state.maximizedItem = item.id))
+                }
+              >
+                <FaWindowMaximize />
+              </button>
+            )}
+            <button
+              className="p-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                setState((state) => doRemoveItem(state, item.id));
+              }}
+            >
+              <FaTimes />
+            </button>
+          </>
         )}
-        <button
-          className="p-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            setState((state) => doRemoveItem(state, item.id));
-          }}
-        >
-          <FaTimes />
-        </button>
       </div>
       <div
-        className={`flex flex-col flex-grow ${item.collapsed ? "hidden" : ""}`}
+        className={`flex flex-col flex-grow ${
+          item.collapsed ? "hidden" : ""
+        } bg-white text-black`}
       >
         {"url" in item ? (
           loaded && <WebItem item={item} setTitle={setTitle} onFocus={focus} />
         ) : (
-          <Set items={item.items} col={!col} />
+          <Set items={item.items} vertical={vertical} />
         )}
       </div>
     </div>
