@@ -193,7 +193,7 @@ const switchVerticalSetting = (
 };
 
 type BaseItem = { id: string; name: string; h?: string; collapsed?: boolean };
-type PageItem = BaseItem & { url: string };
+type PageItem = BaseItem & { url: string; favicon?: string };
 type GroupItem = BaseItem & {
   items: Item[];
   vertical?: boolean;
@@ -396,7 +396,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
         {"url" in item && (
           <img
             className={`w-4 h-4 ${verticalText ? "ml-1" : "mt-1"}`}
-            src={`${new URL(item.url).origin}/favicon.ico`}
+            src={item.favicon || `${new URL(item.url).origin}/favicon.ico`}
           />
         )}
         {state.editItemName === item.id ? (
@@ -539,6 +539,15 @@ const WebItem = ({ item, setTitle, onFocus }) => {
       setState((state) => newTile(state, "", e.url, true));
     });
     webView.current.addEventListener("focus", onFocus);
+    webView.current.addEventListener("page-favicon-updated", (e) => {
+      if (e.favicons.length) {
+        setState(
+          (state) =>
+            ((findItem(state.items, item.id) as PageItem).favicon =
+              e.favicons[0])
+        );
+      }
+    });
   }, []);
 
   const navigate = (url: string, force = false) => {
@@ -557,6 +566,7 @@ const WebItem = ({ item, setTitle, onFocus }) => {
     } else {
       setUrl(url);
     }
+    return url;
   };
 
   useEffect(() => {
@@ -568,40 +578,50 @@ const WebItem = ({ item, setTitle, onFocus }) => {
   return (
     <>
       <div className="flex p-2 space-x-1">
-        {(addressBar.current?.value || url) !== item.url && (
-          <>
-            <button
-              className="p-1 border border-transparent"
-              onClick={() => {
-                navigate(
-                  item.url,
-                  url === item.url && url !== webView.current.getURL()
-                );
-              }}
-            >
-              <FaStepBackward />
-            </button>
-            <button
-              className="p-1 border border-transparent"
-              onClick={() => {
-                setState(
-                  (state) =>
-                    ((findItem(state.items, item.id) as PageItem).url =
-                      addressBar.current.value)
-                );
-              }}
-            >
-              <FaThumbtack />
-            </button>
-          </>
-        )}
         <button
+          title="pin this url"
+          disabled={(addressBar.current?.value || url) === item.url}
+          className={`p-1 border border-transparent ${
+            (addressBar.current?.value || url) === item.url
+              ? "text-gray-400 cursor-default"
+              : ""
+          }`}
+          onClick={() => {
+            setState(
+              (state) =>
+                ((findItem(state.items, item.id) as PageItem).url =
+                  addressBar.current.value)
+            );
+          }}
+        >
+          <FaThumbtack />
+        </button>
+        <button
+          title={`back to pinned url (${item.url})`}
+          disabled={(addressBar.current?.value || url) === item.url}
+          className={`p-1 border border-transparent ${
+            (addressBar.current?.value || url) === item.url
+              ? "text-gray-400 cursor-default"
+              : ""
+          }`}
+          onClick={() => {
+            navigate(
+              item.url,
+              url === item.url && url !== webView.current.getURL()
+            );
+          }}
+        >
+          <FaStepBackward />
+        </button>
+        <button
+          title="back"
           className="p-1 border border-transparent"
           onClick={() => webView.current.goBack()}
         >
           <FaArrowLeft />
         </button>
         <button
+          title="reload"
           className="p-1 border border-transparent"
           onClick={() => webView.current.reload()}
         >
@@ -612,7 +632,13 @@ const WebItem = ({ item, setTitle, onFocus }) => {
             className="flex flex-grow"
             onSubmit={(e) => {
               e.preventDefault();
-              navigate(addressBar.current.value);
+              const newUrl = navigate(addressBar.current.value);
+              if (url === "about:blank") {
+                setState(
+                  (state) =>
+                    ((findItem(state.items, item.id) as PageItem).url = newUrl)
+                );
+              }
             }}
           >
             <input
