@@ -20,6 +20,12 @@ export type StoredState = {
   maximizedItem?: string;
   selectedItem?: string;
   editItemName?: string;
+  resizeItem?: {
+    id: string;
+    vertical?: boolean;
+    startPos: number;
+    startSize: number;
+  };
   items: Item[];
 };
 
@@ -32,7 +38,8 @@ export type DerivedState = {
 export type BaseItem = {
   id: string;
   name: string;
-  h?: string;
+  width?: number;
+  height?: number;
   collapsed?: boolean;
 };
 export type PageItem = BaseItem & {

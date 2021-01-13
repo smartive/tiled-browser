@@ -107,7 +107,43 @@ const ActualPage = () => {
     };
     window.addEventListener("keydown", onKeyDown);
 
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const onMouseMove = (e: MouseEvent) => {
+      setState((state) => {
+        if (state.resizeItem) {
+          if (e.buttons === 0) {
+            state.resizeItem = undefined;
+          } else {
+            findItem(state.items, state.resizeItem.id)[
+              state.resizeItem.vertical ? "height" : "width"
+            ] =
+              state.resizeItem.startSize +
+              (state.resizeItem.vertical ? e.pageY : e.pageX) -
+              state.resizeItem.startPos;
+          }
+        }
+      });
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    const onMouseUp = (e: MouseEvent) => {
+      setState((state) => {
+        if (state.resizeItem) {
+          findItem(state.items, state.resizeItem.id)[
+            state.resizeItem.vertical ? "height" : "width"
+          ] =
+            state.resizeItem.startSize +
+            (state.resizeItem.vertical ? e.pageY : e.pageX) -
+            state.resizeItem.startPos;
+          state.resizeItem = undefined;
+        }
+      });
+    };
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
   }, []);
 
   return (
@@ -166,25 +202,37 @@ const Set = ({ id, items, vertical = false }) => {
         const [splicedItem] = parent.items.splice(index, 1);
         const newParent = (findItem(state.items, id) as GroupItem) || state;
         newParent.items.push(splicedItem);
-        console.log("mooooved");
       });
     },
   });
   return (
     <div
       ref={dropRef}
-      className={`flex flex-grow h-full w-full divide-gray-300 ${
-        vertical ? "flex-col divide-y" : "flex-row divide-x"
+      className={`flex flex-grow h-full w-full  ${
+        vertical ? "flex-col" : "flex-row"
       } overflow-hidden`}
     >
-      {items.map((item) => (
-        <ItemComponent key={item.id} item={item} />
+      {items.map((item, i) => (
+        <ItemComponent
+          key={item.id}
+          item={item}
+          index={i}
+          length={items.length}
+        />
       ))}
     </div>
   );
 };
 
-const ItemComponent = ({ item }: { item: Item }) => {
+const ItemComponent = ({
+  item,
+  index,
+  length,
+}: {
+  item: Item;
+  index: number;
+  length: number;
+}) => {
   const ref = useRef<HTMLDivElement>();
   const [state, setState] = useContext(AppStateContext);
   const [newName, setNewName] = useState(item.name);
@@ -247,11 +295,6 @@ const ItemComponent = ({ item }: { item: Item }) => {
           newParent.items.findIndex((other) => other.id === item.id) +
           +(hoverClient > hoverMiddle);
         newParent.items.splice(newIndex, 0, splicedItem);
-        console.log(
-          "moved",
-          ["id" in parent ? parent.id : "root", index],
-          ["id" in newParent ? newParent.id : "root", newIndex]
-        );
       });
     },
   });
@@ -268,7 +311,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
   return (
     <div
       ref={ref}
-      className={`group flex flex-col
+      className={`group relative flex flex-col
         ${
           state.selectedItem === item.id
             ? `bg-gray-200 text-black`
@@ -284,18 +327,18 @@ const ItemComponent = ({ item }: { item: Item }) => {
         ${
           item.collapsed
             ? "flex-none"
-            : item.h
-            ? `flex-none h-${item.h}`
+            : item.width || item.height
+            ? ``
             : "flex-1"
         }`}
-      style={{ opacity }}
+      style={{ opacity, height: item.height, width: item.width }}
       onClick={(e) => {
         e.stopPropagation();
         focus();
       }}
     >
       <div
-        ref={dragRef}
+        ref={!state.selectedItem ? dragRef : undefined}
         className={`flex p-2 ${
           verticalText ? "flex-col flex-grow space-y-1" : "space-x-1"
         }`}
@@ -338,7 +381,6 @@ const ItemComponent = ({ item }: { item: Item }) => {
         {favicon && (
           <img
             onError={(e) => {
-              console.log(e);
               setState(
                 (state) =>
                   ((findItem(state.items, item.id) as PageItem).favicon = null)
@@ -397,7 +439,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
           </div>
         )}
         {!item.collapsed && (
-          <div className="flex space-x-1 opacity-0 group-hover:opacity-100">
+          <div className="flex space-x-1 invisible group-hover:visible">
             {"items" in item && (
               <>
                 <Button
@@ -497,6 +539,28 @@ const ItemComponent = ({ item }: { item: Item }) => {
           <Set id={item.id} items={item.items} vertical={vertical} />
         )}
       </div>
+      {!item.collapsed && index !== length - 1 && (
+        <div
+          onMouseDown={(e) =>
+            setState(
+              (state) =>
+                (state.resizeItem = {
+                  id: item.id,
+                  vertical: parentVertical,
+                  startPos: parentVertical ? e.pageY : e.pageX,
+                  startSize: parentVertical
+                    ? ref.current.clientHeight
+                    : ref.current.clientWidth,
+                })
+            )
+          }
+          className={`z-50 flex-none absolute transform ${
+            parentVertical
+              ? "w-full h-3 bottom-0 cursor-ns-resize translate-y-1/2"
+              : "h-full w-3 right-0 cursor-ew-resize translate-x-1/2"
+          }`}
+        />
+      )}
     </div>
   );
 };
@@ -653,13 +717,16 @@ const WebItem = ({ item, onFocus }) => {
           </form>
         </div>
       </div>
-      <webview
-        ref={webView}
-        src={url}
-        className="flex-grow"
-        useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.131 Safari/537.36"
-        /*useragent="Chrome"*/
-      />
+      <div className="flex-grow relative">
+        {state.resizeItem && <div className="absolute inset-0 z-50" />}
+        <webview
+          ref={webView}
+          src={url}
+          className="w-full h-full"
+          useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
+          /*useragent="Chrome"*/
+        />
+      </div>
     </>
   );
 };
