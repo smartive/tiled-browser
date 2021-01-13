@@ -10,6 +10,8 @@ import {
   FaChevronRight,
   FaEllipsisH,
   FaEllipsisV,
+  FaPlus,
+  FaPlusSquare,
   FaRedo,
   FaStepBackward,
   FaThumbtack,
@@ -95,10 +97,12 @@ const ActualPage = () => {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.shiftKey && e.key === "n") {
-        setState((state) => newTile(state, "", "about:blank", false));
-      } else if (e.ctrlKey && e.key === "g") {
-        setState((state) => newGroup(state, false));
+      if (e.ctrlKey && e.code === "KeyN") {
+        setState((state) =>
+          newTile(state, "", "about:blank", e.shiftKey && state)
+        );
+      } else if (e.ctrlKey && e.code === "KeyG") {
+        setState((state) => newGroup(state, e.shiftKey && state));
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -107,7 +111,7 @@ const ActualPage = () => {
   }, []);
 
   return (
-    <div className="h-screen w-screen flex overflow-x-hidden">
+    <div className="h-screen w-screen flex overflow-x-hidden bg-gray-700 text-white">
       <Head>
         <title>
           Tiled Browser
@@ -117,6 +121,26 @@ const ActualPage = () => {
         </title>
       </Head>
       <Set id="root" items={state.items} />
+      <div className="text-lg flex flex-col p-2">
+        <Button
+          size="lg"
+          title="New Tile"
+          shortcut="Ctrl-Shift-N"
+          onClick={() =>
+            setState((state) => newTile(state, "", "about:blank", state))
+          }
+        >
+          <FaPlus />
+        </Button>
+        <Button
+          size="lg"
+          title="New Group"
+          shortcut="Ctrl-Shift-G"
+          onClick={() => setState((state) => newGroup(state, state))}
+        >
+          <FaPlusSquare />
+        </Button>
+      </div>
     </div>
   );
 };
@@ -149,8 +173,8 @@ const Set = ({ id, items, vertical = false }) => {
   return (
     <div
       ref={dropRef}
-      className={`flex flex-grow h-full w-full ${
-        vertical ? "flex-col" : "flex-row"
+      className={`flex flex-grow h-full w-full divide-gray-300 ${
+        vertical ? "flex-col divide-y" : "flex-row divide-x"
       } overflow-hidden`}
     >
       {items.map((item) => (
@@ -244,11 +268,11 @@ const ItemComponent = ({ item }: { item: Item }) => {
   return (
     <div
       ref={ref}
-      className={`flex flex-col
+      className={`group flex flex-col
         ${
           state.selectedItem === item.id
             ? `bg-gray-200 text-black`
-            : `bg-gray-900 text-white hover:bg-gray-700`
+            : `bg-gray-800 text-white hover:bg-gray-700`
         }
         ${
           !state.maximizedItem ||
@@ -284,12 +308,25 @@ const ItemComponent = ({ item }: { item: Item }) => {
         }
       >
         <Button
+          title={item.collapsed ? "Expand" : "Collapse"}
+          shortcut={null}
           onClick={(e) => {
             e.stopPropagation();
-            setState(
-              (state) =>
-                (findItem(state.items, item.id).collapsed = !item.collapsed)
-            );
+            setState((state) => {
+              const newCollapsed = !item.collapsed;
+              findItem(state.items, item.id).collapsed = newCollapsed;
+              if (newCollapsed) {
+                if (state.selectedItem === item.id) {
+                  state.selectedItem = undefined;
+                }
+                if (state.maximizedItem === item.id) {
+                  state.maximizedItem = undefined;
+                }
+                if (state.editItemName === item.id) {
+                  state.editItemName = undefined;
+                }
+              }
+            });
           }}
         >
           {item.collapsed && parentVertical ? (
@@ -360,29 +397,65 @@ const ItemComponent = ({ item }: { item: Item }) => {
           </div>
         )}
         {!item.collapsed && (
-          <>
+          <div className="flex space-x-1 opacity-0 group-hover:opacity-100">
             {"items" in item && (
-              <Button
-                className={item.vertical === undefined ? "text-gray-500" : ""}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setState(
-                    (state) =>
-                      ((findItem(
-                        state.items,
-                        item.id
-                      ) as GroupItem).vertical = switchVerticalSetting(
-                        item.vertical,
-                        computedVertical
-                      ))
-                  );
-                }}
-              >
-                {vertical ? <FaEllipsisV /> : <FaEllipsisH />}
-              </Button>
+              <>
+                <Button
+                  title="Toggle Children Layout"
+                  shortcut={null}
+                  className={item.vertical === undefined ? "text-gray-500" : ""}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setState(
+                      (state) =>
+                        ((findItem(
+                          state.items,
+                          item.id
+                        ) as GroupItem).vertical = switchVerticalSetting(
+                          item.vertical,
+                          computedVertical
+                        ))
+                    );
+                  }}
+                >
+                  {vertical ? <FaEllipsisV /> : <FaEllipsisH />}
+                </Button>
+                <Button
+                  title="New Subgroup"
+                  shortcut="Ctrl-G"
+                  onClick={() =>
+                    setState((state) =>
+                      newGroup(
+                        state,
+                        findItem(state.items, item.id) as GroupItem
+                      )
+                    )
+                  }
+                >
+                  <FaPlusSquare />
+                </Button>
+                <Button
+                  title="New Tile"
+                  shortcut="Ctrl-N"
+                  onClick={() =>
+                    setState((state) =>
+                      newTile(
+                        state,
+                        "",
+                        "about:blank",
+                        findItem(state.items, item.id) as GroupItem
+                      )
+                    )
+                  }
+                >
+                  <FaPlus />
+                </Button>
+              </>
             )}
             {state.maximizedItem === item.id ? (
               <Button
+                title="Restore"
+                shortcut={null}
                 onClick={() =>
                   setState((state) => (state.maximizedItem = undefined))
                 }
@@ -391,6 +464,8 @@ const ItemComponent = ({ item }: { item: Item }) => {
               </Button>
             ) : (
               <Button
+                title="Maximize"
+                shortcut={null}
                 onClick={() =>
                   setState((state) => (state.maximizedItem = item.id))
                 }
@@ -399,6 +474,8 @@ const ItemComponent = ({ item }: { item: Item }) => {
               </Button>
             )}
             <Button
+              title="Close"
+              shortcut="Ctrl-W"
               onClick={(e) => {
                 e.stopPropagation();
                 setState((state) => doRemoveItem(state, item.id));
@@ -406,7 +483,7 @@ const ItemComponent = ({ item }: { item: Item }) => {
             >
               <FaTimes />
             </Button>
-          </>
+          </div>
         )}
       </div>
       <div
@@ -461,7 +538,7 @@ const WebItem = ({ item, onFocus }) => {
       }
     });
     webView.current.addEventListener("new-window", (e) => {
-      setState((state) => newTile(state, "", e.url, true));
+      setState((state) => newTile(state, "", e.url, state));
     });
     webView.current.addEventListener("focus", onFocus);
     webView.current.addEventListener("page-favicon-updated", (e) => {
@@ -504,7 +581,8 @@ const WebItem = ({ item, onFocus }) => {
     <>
       <div className="flex p-2 space-x-1">
         <AddressBarButton
-          title="pin this url"
+          title="Pin this URL"
+          shortcut={null}
           disabled={(addressBar.current?.value || url) === item.url}
           onClick={() => {
             setState(
@@ -517,7 +595,8 @@ const WebItem = ({ item, onFocus }) => {
           <FaThumbtack />
         </AddressBarButton>
         <AddressBarButton
-          title={`back to pinned url (${item.url})`}
+          title={`Back to pinned url (${item.url})`}
+          shortcut={null}
           disabled={(addressBar.current?.value || url) === item.url}
           onClick={() => {
             navigate(
@@ -529,14 +608,16 @@ const WebItem = ({ item, onFocus }) => {
           <FaStepBackward />
         </AddressBarButton>
         <AddressBarButton
-          title="back"
+          title="Back"
+          shortcut={null}
           onClick={() => webView.current.goBack()}
           disabled={!ready || !webView.current.canGoBack()}
         >
           <FaArrowLeft />
         </AddressBarButton>
         <AddressBarButton
-          title="reload"
+          title="Reload"
+          shortcut={null}
           onClick={() => webView.current.reload()}
         >
           <FaRedo />

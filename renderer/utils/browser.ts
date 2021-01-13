@@ -133,16 +133,14 @@ const getCurrentGroup = (state: AppState) => {
   return group as GroupItem;
 };
 
-export const newGroup = (state: AppState, appendToRoot: boolean) => {
+export const newGroup = (state: AppState, parent: { items: Item[] }) => {
   const group = {
     id: ulid(),
     name: "",
     items: [],
   };
 
-  let parent;
-
-  if (!appendToRoot) {
+  if (!parent) {
     parent = getCurrentGroup(state);
   }
 
@@ -160,22 +158,24 @@ export const newTile = (
   state: AppState,
   name: string,
   url: string,
-  appendToNewGroup: boolean
+  group?: { items: Item[] }
 ) => {
-  let group: GroupItem;
-
-  if (!appendToNewGroup) {
+  if (!group) {
     group = getCurrentGroup(state);
   }
 
   if (!group) {
-    group = state.items.filter(isGroupItem).find((item) => item.name === "");
+    group = state;
   }
+  // alternatively, create new group...
+  // if (!group) {
+  //   group = state.items.filter(isGroupItem).find((item) => item.name === "");
+  // }
 
-  if (!group) {
-    group = { id: ulid(), name: "", items: [] };
-    state.items.push(group);
-  }
+  // if (!group) {
+  //   group = { id: ulid(), name: "", items: [] };
+  //   state.items.push(group);
+  // }
 
   const id = ulid();
   group.items.push({ id, name, url });
