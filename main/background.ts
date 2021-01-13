@@ -11,6 +11,9 @@ if (isProd) {
 }
 
 (async () => {
+  // https://github.com/electron/electron/issues/25469
+  app.commandLine.appendSwitch("disable-features", "CrossOriginOpenerPolicy");
+
   await app.whenReady();
 
   app.on(

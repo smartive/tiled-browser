@@ -4,7 +4,7 @@ export const DEFAULT_STATE: StoredState = {
   items: [
     {
       id: "foobar",
-      name: "Browsing",
+      name: "",
       items: [
         {
           id: "xyz",
@@ -52,7 +52,7 @@ export const getFullState = (state: StoredState): AppState => {
     ...state,
     itemsByKey: {},
   };
-  setItemsById(fullState, fullState.items, []);
+  deriveFullState(fullState);
   return fullState;
 };
 
@@ -63,6 +63,10 @@ export const getStoredState = ({
   maximizedItem,
   items,
 });
+
+export const deriveFullState = (state: AppState) => {
+  setItemsById(state, state.items, []);
+};
 
 const setItemsById = (state: AppState, items: Item[], path: string[]) => {
   for (const item of items) {
@@ -129,23 +133,25 @@ const getCurrentGroup = (state: AppState) => {
   return group as GroupItem;
 };
 
-export const newGroup = (state: AppState) => {
-  let currentGroup = getCurrentGroup(state);
-
+export const newGroup = (state: AppState, appendToRoot: boolean) => {
   const group = {
     id: ulid(),
-    name: "New Group",
+    name: "",
     items: [],
   };
-  if (currentGroup) {
-    currentGroup.items.push(group);
-    state.itemsByKey[group.id] = {
-      path: [...state.itemsByKey[currentGroup.id].path, group.id],
-    };
-  } else {
-    state.items.push(group);
-    state.itemsByKey[group.id] = { path: [group.id] };
+
+  let parent;
+
+  if (!appendToRoot) {
+    parent = getCurrentGroup(state);
   }
+
+  if (!parent) {
+    parent = state;
+  }
+
+  parent.items.push(group);
+
   state.selectedItem = group.id;
   state.editItemName = group.id;
 };
@@ -154,31 +160,25 @@ export const newTile = (
   state: AppState,
   name: string,
   url: string,
-  browsing: boolean
+  appendToNewGroup: boolean
 ) => {
   let group: GroupItem;
 
-  if (!browsing) {
+  if (!appendToNewGroup) {
     group = getCurrentGroup(state);
   }
 
   if (!group) {
-    group = state.items
-      .filter(isGroupItem)
-      .find((item) => item.name === "Browsing");
+    group = state.items.filter(isGroupItem).find((item) => item.name === "");
   }
 
   if (!group) {
-    group = { id: ulid(), name: "Browsing", items: [] };
+    group = { id: ulid(), name: "", items: [] };
     state.items.push(group);
-    state.itemsByKey[group.id] = {
-      path: [group.id],
-    };
   }
 
   const id = ulid();
   group.items.push({ id, name, url });
-  state.itemsByKey[id] = { path: [group.id, id] };
   state.selectedItem = id;
 };
 
@@ -198,10 +198,10 @@ export const switchVerticalSetting = (
 
 const isGroupItem = (item: Item): item is GroupItem => "items" in item;
 
-export const getParent = (state: AppState, item: Item) => {
-  const path = state.itemsByKey[item.id].path;
+export const getParent = (state: AppState, id: string): GroupItem => {
+  const path = state.itemsByKey[id].path;
   const parentId = path[path.length - 2];
-  return parentId && findItem(state.items, parentId);
+  return parentId && (findItem(state.items, parentId) as GroupItem);
 };
 
 export const getItemVertical = (state: AppState, item: Item) => {
