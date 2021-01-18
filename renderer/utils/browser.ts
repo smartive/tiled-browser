@@ -26,6 +26,7 @@ export type StoredState = {
     startPos: number;
     startSize: number;
   };
+  dragItem?: string;
   items: Item[];
 };
 
@@ -46,6 +47,7 @@ export type PageItem = BaseItem & {
   url: string;
   favicon?: string;
   title?: string;
+  zoom?: number;
 };
 export type GroupItem = BaseItem & {
   items: Item[];

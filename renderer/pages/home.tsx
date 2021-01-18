@@ -250,6 +250,13 @@ const ItemComponent = ({
       ? item.favicon
       : `${new URL(item.url).origin}/favicon.ico`);
 
+  const lastOpen = index === length - 1;
+  const customSize =
+    !item.collapsed &&
+    ((parentVertical && item.height) || (!parentVertical && item.width)) &&
+    !lastOpen &&
+    !state.maximizedItem;
+
   useEffect(() => {
     if (!item.collapsed) {
       setLoaded(true);
@@ -304,6 +311,8 @@ const ItemComponent = ({
     collect: (monitor) => ({
       opacity: monitor.isDragging() ? 0.5 : 1,
     }),
+    begin: () => setState((state) => (state.dragItem = item.id)),
+    end: () => setState((state) => (state.dragItem = undefined)),
   });
 
   dropRef(previewRef(ref));
@@ -324,21 +333,25 @@ const ItemComponent = ({
             ? ""
             : "hidden"
         }
-        ${
-          item.collapsed
-            ? "flex-none"
-            : item.width || item.height
-            ? ``
-            : "flex-1"
-        }`}
-      style={{ opacity, height: item.height, width: item.width }}
+        ${item.collapsed ? "flex-none" : customSize ? `` : "flex-1"}`}
+      style={{
+        opacity,
+        ...(customSize &&
+          (parentVertical ? { height: item.height } : { width: item.width })),
+      }}
       onClick={(e) => {
         e.stopPropagation();
         focus();
       }}
+      onDragStart={(e) => {
+        if (state.resizeItem) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
     >
       <div
-        ref={!state.selectedItem ? dragRef : undefined}
+        ref={dragRef}
         className={`flex p-2 ${
           verticalText ? "flex-col flex-grow space-y-1" : "space-x-1"
         }`}
@@ -539,7 +552,7 @@ const ItemComponent = ({
           <Set id={item.id} items={item.items} vertical={vertical} />
         )}
       </div>
-      {!item.collapsed && index !== length - 1 && (
+      {!item.collapsed && !lastOpen && (
         <div
           onMouseDown={(e) =>
             setState(
@@ -575,8 +588,11 @@ const WebItem = ({ item, onFocus }) => {
   const [state, setState] = useContext(AppStateContext);
 
   useEffect(() => {
+    setReady(false);
     const firstLoad = () => {
-      webView.current.setZoomLevel(-1);
+      if (item.zoom) {
+        webView.current.setZoomLevel(item.zoom);
+      }
       webView.current.removeEventListener("dom-ready", firstLoad);
       setReady(true);
     };
@@ -718,7 +734,9 @@ const WebItem = ({ item, onFocus }) => {
         </div>
       </div>
       <div className="flex-grow relative">
-        {state.resizeItem && <div className="absolute inset-0 z-50" />}
+        {(state.resizeItem || state.dragItem) && (
+          <div className="absolute inset-0 z-50" />
+        )}
         <webview
           ref={webView}
           src={url}
