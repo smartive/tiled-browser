@@ -584,17 +584,16 @@ const WebItem = ({ item, onFocus }) => {
   const webView = useRef<WebviewTag>();
   const addressBar = useRef<HTMLInputElement>();
   const [url, setUrl] = useState(item.url);
-  const [ready, setReady] = useState(false);
+  const [canGoBack, setCanGoBack] = useState(false);
   const [state, setState] = useContext(AppStateContext);
 
   useEffect(() => {
-    setReady(false);
     const firstLoad = () => {
       if (item.zoom) {
         webView.current.setZoomLevel(item.zoom);
       }
       webView.current.removeEventListener("dom-ready", firstLoad);
-      setReady(true);
+      setCanGoBack(webView.current.canGoBack());
     };
     webView.current.addEventListener("dom-ready", firstLoad);
     webView.current.addEventListener("error", console.error);
@@ -603,6 +602,11 @@ const WebItem = ({ item, onFocus }) => {
     });
     webView.current.addEventListener("did-navigate", (e) => {
       addressBar.current.value = (e as any).url;
+      setCanGoBack(webView.current.canGoBack());
+    });
+    webView.current.addEventListener("did-navigate-in-page", (e) => {
+      addressBar.current.value = (e as any).url;
+      setCanGoBack(webView.current.canGoBack());
     });
 
     webView.current.addEventListener("page-title-updated", (e) => {
@@ -611,9 +615,6 @@ const WebItem = ({ item, onFocus }) => {
         setState((state) => {
           const theItem = findItem(state.items, item.id) as PageItem;
           theItem.title = title;
-          if (!theItem.name) {
-            theItem.name = title;
-          }
         });
       }
     });
@@ -665,11 +666,13 @@ const WebItem = ({ item, onFocus }) => {
           shortcut={null}
           disabled={(addressBar.current?.value || url) === item.url}
           onClick={() => {
-            setState(
-              (state) =>
-                ((findItem(state.items, item.id) as PageItem).url =
-                  addressBar.current.value)
-            );
+            setState((state) => {
+              const theItem = findItem(state.items, item.id) as PageItem;
+              theItem.url = addressBar.current.value;
+              if (!theItem.name) {
+                theItem.name = theItem.title;
+              }
+            });
           }}
         >
           <FaThumbtack />
@@ -691,7 +694,7 @@ const WebItem = ({ item, onFocus }) => {
           title="Back"
           shortcut={null}
           onClick={() => webView.current.goBack()}
-          disabled={!ready || !webView.current.canGoBack()}
+          disabled={!canGoBack}
         >
           <FaArrowLeft />
         </AddressBarButton>
