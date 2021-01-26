@@ -75,6 +75,7 @@ export default (
     ...state,
     autoHideMenuBar: true,
     webPreferences: {
+      contextIsolation: false,
       nodeIntegration: true,
       webviewTag: true,
       ...options.webPreferences,

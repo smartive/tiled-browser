@@ -6,6 +6,8 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
   FaArrowLeft,
+  FaArrowsAltH,
+  FaArrowsAltV,
   FaChevronDown,
   FaChevronRight,
   FaEllipsisH,
@@ -244,11 +246,16 @@ const ItemComponent = ({
   const [vertical, computedVertical] = getItemVertical(state, item);
 
   const verticalText = item.collapsed && !parentVertical;
-  const favicon =
-    "url" in item &&
-    (item.favicon !== undefined
-      ? item.favicon
-      : `${new URL(item.url).origin}/favicon.ico`);
+  const favicon = (() => {
+    try {
+      return (
+        "url" in item &&
+        (item.favicon !== undefined
+          ? item.favicon
+          : `${new URL(item.url).origin}/favicon.ico`)
+      );
+    } catch (e) {}
+  })();
 
   const lastOpen = index === length - 1;
   const customSize =
@@ -478,21 +485,23 @@ const ItemComponent = ({
                 <Button
                   title="New Subgroup"
                   shortcut="Ctrl-G"
-                  onClick={() =>
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setState((state) =>
                       newGroup(
                         state,
                         findItem(state.items, item.id) as GroupItem
                       )
-                    )
-                  }
+                    );
+                  }}
                 >
                   <FaPlusSquare />
                 </Button>
                 <Button
                   title="New Tile"
                   shortcut="Ctrl-N"
-                  onClick={() =>
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setState((state) =>
                       newTile(
                         state,
@@ -500,12 +509,28 @@ const ItemComponent = ({
                         "about:blank",
                         findItem(state.items, item.id) as GroupItem
                       )
-                    )
-                  }
+                    );
+                  }}
                 >
                   <FaPlus />
                 </Button>
               </>
+            )}
+            {customSize && (
+              <Button
+                title={`Disable fixed ${parentVertical ? "height" : "width"}`}
+                shortcut={null}
+                onClick={() =>
+                  setState(
+                    (state) =>
+                      (findItem(state.items, item.id)[
+                        parentVertical ? "height" : "width"
+                      ] = undefined)
+                  )
+                }
+              >
+                {parentVertical ? <FaArrowsAltV /> : <FaArrowsAltH />}
+              </Button>
             )}
             {state.maximizedItem === item.id ? (
               <Button
@@ -546,10 +571,10 @@ const ItemComponent = ({
           item.collapsed ? "hidden" : ""
         } bg-white text-black`}
       >
-        {"url" in item ? (
-          loaded && <WebItem item={item} onFocus={focus} />
-        ) : (
+        {"items" in item ? (
           <Set id={item.id} items={item.items} vertical={vertical} />
+        ) : (
+          loaded && <WebItem item={item} onFocus={focus} />
         )}
       </div>
       {!item.collapsed && !lastOpen && (
@@ -597,15 +622,12 @@ const WebItem = ({ item, onFocus }) => {
     };
     webView.current.addEventListener("dom-ready", firstLoad);
     webView.current.addEventListener("error", console.error);
-    webView.current.addEventListener("will-navigate", (e) => {
-      addressBar.current.value = (e as any).url;
-    });
     webView.current.addEventListener("did-navigate", (e) => {
-      addressBar.current.value = (e as any).url;
+      addressBar.current.value = e.url || webView.current.getURL();
       setCanGoBack(webView.current.canGoBack());
     });
     webView.current.addEventListener("did-navigate-in-page", (e) => {
-      addressBar.current.value = (e as any).url;
+      addressBar.current.value = e.url || webView.current.getURL();
       setCanGoBack(webView.current.canGoBack());
     });
 
@@ -623,7 +645,7 @@ const WebItem = ({ item, onFocus }) => {
     });
     webView.current.addEventListener("focus", onFocus);
     webView.current.addEventListener("page-favicon-updated", (e) => {
-      if (e.favicons.length) {
+      if (e.favicons?.length) {
         setState(
           (state) =>
             ((findItem(state.items, item.id) as PageItem).favicon =
