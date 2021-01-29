@@ -149,7 +149,7 @@ const ActualPage = () => {
   }, []);
 
   return (
-    <div className="h-screen w-screen flex overflow-x-hidden bg-gray-700 text-white">
+    <div className="text-sm h-screen w-screen flex overflow-x-hidden bg-gray-700 text-white">
       <Head>
         <title>
           Tiled Browser
@@ -159,9 +159,9 @@ const ActualPage = () => {
         </title>
       </Head>
       <Set id="root" items={state.items} />
-      <div className="text-lg flex flex-col p-2">
+      <div className="flex flex-col space-y-1 p-2">
         <Button
-          size="lg"
+          size="normal"
           title="New Tile"
           shortcut="Ctrl-Shift-N"
           onClick={() =>
@@ -171,7 +171,7 @@ const ActualPage = () => {
           <FaPlus />
         </Button>
         <Button
-          size="lg"
+          size="normal"
           title="New Group"
           shortcut="Ctrl-Shift-G"
           onClick={() => setState((state) => newGroup(state, state))}
@@ -359,7 +359,7 @@ const ItemComponent = ({
     >
       <div
         ref={dragRef}
-        className={`flex p-2 ${
+        className={`flex p-1 items-center ${
           verticalText ? "flex-col flex-grow space-y-1" : "space-x-1"
         }`}
         style={
@@ -637,6 +637,9 @@ const WebItem = ({ item, onFocus }) => {
         setState((state) => {
           const theItem = findItem(state.items, item.id) as PageItem;
           theItem.title = title;
+          if (!theItem.name) {
+            theItem.name = title;
+          }
         });
       }
     });
@@ -691,9 +694,7 @@ const WebItem = ({ item, onFocus }) => {
             setState((state) => {
               const theItem = findItem(state.items, item.id) as PageItem;
               theItem.url = addressBar.current.value;
-              if (!theItem.name) {
-                theItem.name = theItem.title;
-              }
+              theItem.name = theItem.title;
             });
           }}
         >
