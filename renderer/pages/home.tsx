@@ -1,3 +1,4 @@
+import dayJs from "dayjs";
 import { WebviewTag } from "electron";
 import produce from "immer";
 import Head from "next/head";
@@ -12,6 +13,8 @@ import {
   FaChevronRight,
   FaEllipsisH,
   FaEllipsisV,
+  FaFileExport,
+  FaFileImport,
   FaPlus,
   FaPlusSquare,
   FaRedo,
@@ -178,8 +181,66 @@ const ActualPage = () => {
         >
           <FaPlusSquare />
         </Button>
+        <Import />
+        <Button
+          size="normal"
+          title="Export Settings"
+          shortcut={null}
+          onClick={() => {
+            const a = document.createElement("a");
+            a.href = `data:application/json;charset=utf-8,${encodeURIComponent(
+              JSON.stringify(getStoredState(state), null, 2)
+            )}`;
+            a.download = `tiled-browser-export-${dayJs().format(
+              "YYYY-MM-DD_HH-mm-ss"
+            )}.json`;
+            a.click();
+          }}
+        >
+          <FaFileExport />
+        </Button>
       </div>
     </div>
+  );
+};
+
+const Import = () => {
+  const inputRef = useRef<HTMLInputElement>();
+
+  const [, setState] = useContext(AppStateContext);
+
+  return (
+    <Button
+      size="normal"
+      title="Import Settings"
+      shortcut={null}
+      onClick={() => inputRef.current.click()}
+    >
+      <FaFileImport />
+      <input
+        ref={inputRef}
+        className="hidden"
+        type="file"
+        onChange={(e) => {
+          if (!e.target.files.length) {
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target.result as string;
+            if (!result.startsWith("data:application/json;base64,")) {
+              throw new Error("Unknown format");
+            }
+            const newState = JSON.parse(atob(result.substring(29)));
+            if (!confirm("Overwrite your current browser state?")) {
+              return;
+            }
+            setState((state) => Object.assign(state, newState));
+          };
+          reader.readAsDataURL(e.target.files[0]);
+        }}
+      />
+    </Button>
   );
 };
 
@@ -685,7 +746,7 @@ const WebItem = ({ item, onFocus }) => {
 
   return (
     <>
-      <div className="flex p-2 space-x-1">
+      <div className="flex items-center p-2 space-x-1">
         <AddressBarButton
           title="Pin this URL"
           shortcut={null}
