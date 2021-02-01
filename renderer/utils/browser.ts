@@ -20,6 +20,8 @@ export type StoredState = {
   maximizedItem?: string;
   selectedItem?: string;
   editItemName?: string;
+  search?: string;
+  selectedSearchResult?: string;
   resizeItem?: {
     id: string;
     vertical?: boolean;
@@ -67,9 +69,13 @@ export const getFullState = (state: StoredState): AppState => {
 
 export const getStoredState = ({
   maximizedItem,
+  selectedItem,
   items,
+  search,
 }: AppState): StoredState => ({
   maximizedItem,
+  selectedItem,
+  search,
   items,
 });
 
@@ -102,6 +108,25 @@ export const findItem = (items: Item[], id: string): Item => {
       }
     }
   }
+};
+
+export const filterItems = (items: Item[], search: RegExp): Item[] => {
+  const result = [];
+  for (const item of items) {
+    let filteredItem = item;
+    let add = search.test(item.name);
+    if ("items" in item) {
+      filteredItem = {
+        ...item,
+        items: filterItems(item.items, search),
+      };
+      add = add || !!filteredItem.items.length;
+    }
+    if (add) {
+      result.push(filteredItem);
+    }
+  }
+  return result;
 };
 
 export const doRemoveItem = (state: AppState, id: string) => {
