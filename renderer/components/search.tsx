@@ -4,10 +4,17 @@ import { filterItems, findItem, Item } from "../utils/browser";
 export const Search = () => {
   const [state, setState] = useAppState();
 
-  const items = filterItems(
+  let items = filterItems(
     state.items,
-    new RegExp(state.search.split("").join(".*"), "i")
+    new RegExp(state.search.split(" ").join(".*"), "i")
   );
+
+  if (items.length === 0) {
+    items = filterItems(
+      state.items,
+      new RegExp(state.search.split("").join(".*"), "i")
+    );
+  }
 
   return (
     <div className="z-50 fixed inset-0 flex flex-col justify-center items-center text-black bg-gray-800 bg-opacity-50">
@@ -28,8 +35,37 @@ export const Search = () => {
   );
 };
 
+const getParts = (string: string, search: string) => {
+  let matches = new RegExp(
+    `^(.*)${search
+      .split(" ")
+      .map((part) => `(${part})(.*)`)
+      .join("")}$`,
+    "i"
+  ).exec(string);
+  if (matches) {
+    const [, ...parts] = matches;
+    return parts;
+  }
+
+  matches = new RegExp(
+    `^(.*)${search
+      .split("")
+      .map((part) => `(${part})(.*)`)
+      .join("")}$`,
+    "i"
+  ).exec(string);
+  if (matches) {
+    const [, ...parts] = matches;
+    return parts;
+  }
+
+  return [string];
+};
+
 const SearchResult = ({ item }: { item: Item }) => {
-  const [, setState] = useAppState();
+  const [state, setState] = useAppState();
+  const parts = getParts(item.name, state.search);
   return (
     <div className="flex flex-col items-stretch">
       <div className="flex">
@@ -41,11 +77,21 @@ const SearchResult = ({ item }: { item: Item }) => {
               for (const id of state.itemsByKey[item.id].path) {
                 findItem(state.items, id).collapsed = false;
               }
+              state.selectedItem = item.id;
+              state.maximizedItem = undefined;
               state.search = undefined;
             })
           }
         >
-          {item.name}
+          {parts.map((part, i) =>
+            i % 2 ? (
+              <em key={i} className="font-bold">
+                {part}
+              </em>
+            ) : (
+              part
+            )
+          )}
         </button>
       </div>
       {"items" in item && (

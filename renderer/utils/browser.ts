@@ -214,6 +214,7 @@ export const newTile = (
   const id = ulid();
   group.items.push({ id, name, url });
   state.selectedItem = id;
+  state.maximizedItem = undefined;
 };
 
 export const switchVerticalSetting = (

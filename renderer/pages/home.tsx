@@ -7,7 +7,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { FaFileExport, FaPlus, FaPlusSquare, FaSearch } from "react-icons/fa";
 import { Button } from "../components/button";
 import { Import } from "../components/import";
-import { Set } from "../components/item";
+import { Group } from "../components/item";
 import { Search } from "../components/search";
 import { AppStateContext, useAppState } from "../hooks/context";
 import {
@@ -140,7 +140,7 @@ const ActualPage = () => {
             : ""}
         </title>
       </Head>
-      <Set id="root" items={state.items} />
+      <Group id="root" items={state.items} />
       <div className="flex flex-col space-y-1 p-2">
         <Button
           size="normal"

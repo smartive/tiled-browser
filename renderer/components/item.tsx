@@ -29,7 +29,7 @@ import {
 import { Button } from "./button";
 import { WebItem } from "./web-item";
 
-export const Set = ({ id, items, vertical = false }) => {
+export const Group = ({ id, items, vertical = false }) => {
   const [, setState] = useAppState();
 
   const [, dropRef] = useDrop<any, any, any>({
@@ -418,7 +418,7 @@ const ItemComponent = ({
         } bg-white text-black`}
       >
         {"items" in item ? (
-          <Set id={item.id} items={item.items} vertical={vertical} />
+          <Group id={item.id} items={item.items} vertical={vertical} />
         ) : (
           loaded && <WebItem item={item} onFocus={focus} />
         )}
