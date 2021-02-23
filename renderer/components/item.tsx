@@ -412,17 +412,19 @@ const ItemComponent = ({
           </div>
         )}
       </div>
-      <div
-        className={`flex flex-col flex-grow ${
-          item.collapsed ? "hidden" : ""
-        } bg-white text-black`}
-      >
-        {"items" in item ? (
-          <Group id={item.id} items={item.items} vertical={vertical} />
-        ) : (
-          loaded && <WebItem item={item} onFocus={focus} />
-        )}
-      </div>
+      {loaded && (
+        <div
+          className={`flex flex-col flex-grow ${
+            item.collapsed ? "hidden" : ""
+          } bg-white text-black`}
+        >
+          {"items" in item ? (
+            <Group id={item.id} items={item.items} vertical={vertical} />
+          ) : (
+            <WebItem item={item} onFocus={focus} />
+          )}
+        </div>
+      )}
       {!item.collapsed && !lastOpen && (
         <div
           onMouseDown={(e) =>
