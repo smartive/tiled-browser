@@ -30,6 +30,7 @@ export type StoredState = {
   };
   dragItem?: string;
   items: Item[];
+  focus?: boolean;
 };
 
 export type AppState = StoredState & DerivedState;
@@ -72,11 +73,13 @@ export const getStoredState = ({
   selectedItem,
   items,
   search,
+  focus,
 }: AppState): StoredState => ({
   maximizedItem,
   selectedItem,
   search,
   items,
+  focus,
 });
 
 export const deriveFullState = (state: AppState) => {

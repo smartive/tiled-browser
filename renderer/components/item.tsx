@@ -29,8 +29,16 @@ import {
 import { Button } from "./button";
 import { WebItem } from "./web-item";
 
-export const Group = ({ id, items, vertical = false }) => {
-  const [, setState] = useAppState();
+export const Group = ({
+  id,
+  items,
+  vertical = false,
+}: {
+  id: string;
+  items: Item[];
+  vertical?: boolean;
+}) => {
+  const [state, setState] = useAppState();
 
   const [, dropRef] = useDrop<any, any, any>({
     accept: ITEM_TYPE,
@@ -60,14 +68,16 @@ export const Group = ({ id, items, vertical = false }) => {
         vertical ? "flex-col" : "flex-row"
       } overflow-hidden`}
     >
-      {items.map((item, i) => (
-        <ItemComponent
-          key={item.id}
-          item={item}
-          index={i}
-          length={items.length}
-        />
-      ))}
+      {items
+        .filter((item) => !state.focus || !item.collapsed)
+        .map((item, i) => (
+          <ItemComponent
+            key={item.id}
+            item={item}
+            index={i}
+            length={items.length}
+          />
+        ))}
     </div>
   );
 };

@@ -4,7 +4,13 @@ import Head from "next/head";
 import { useEffect, useState } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { FaFileExport, FaPlus, FaPlusSquare, FaSearch } from "react-icons/fa";
+import {
+  FaExpand,
+  FaFileExport,
+  FaPlus,
+  FaPlusSquare,
+  FaSearch,
+} from "react-icons/fa";
 import { Button } from "../components/button";
 import { Import } from "../components/import";
 import { Group } from "../components/item";
@@ -172,6 +178,15 @@ const ActualPage = () => {
           }
         >
           <FaSearch />
+        </Button>
+        <Button
+          size="normal"
+          title="Toggle Focus Mode"
+          shortcut={null}
+          onClick={() => setState((state) => (state.focus = !state.focus))}
+          className={state.focus ? "" : "text-gray-500"}
+        >
+          <FaExpand />
         </Button>
         <Import />
         <Button
